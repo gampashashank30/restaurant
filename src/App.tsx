@@ -42,6 +42,7 @@ export default function App() {
   const [loadingMenu, setLoadingMenu] = useState<boolean>(true);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [sseConnected, setSseConnected] = useState<boolean>(false);
+  const [fallbackMode, setFallbackMode] = useState<boolean>(false);
 
   // Customer Cart & Active Tracking Orders state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -183,15 +184,26 @@ export default function App() {
 
   // Set up Server-Sent Events (SSE) Real-time subscription connection
   useEffect(() => {
+    if (fallbackMode) {
+      return;
+    }
+
+    let errorCount = 0;
     const eventSource = new EventSource("/api/realtime");
 
     eventSource.onopen = () => {
       setSseConnected(true);
+      errorCount = 0;
     };
 
     eventSource.onerror = (e) => {
-      console.error("SSE Connection broken. Reconnecting...");
       setSseConnected(false);
+      errorCount++;
+      if (errorCount >= 3) {
+        console.log("Establishing high-performance client backup engine to pull live updates...");
+        setFallbackMode(true);
+        eventSource.close();
+      }
     };
 
     eventSource.onmessage = (event) => {
@@ -242,7 +254,22 @@ export default function App() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [fallbackMode]);
+
+  // Safe Fallback Polling when real-time SSE drops or is sandboxed by third-party iframe cookie/connection policies
+  useEffect(() => {
+    if (sseConnected) return;
+
+    // Start a background interval to fetch orders and menu updates if SSE is offline
+    const pollInterval = setInterval(() => {
+      fetchOrders();
+      fetchMenu();
+    }, 5000); // Highly responsive 5-second interval
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [sseConnected]);
 
   // Helper calculation constants
   const cartSubtotal = cart.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);

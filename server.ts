@@ -160,6 +160,11 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
+  // Lightweight health check endpoint for Uptime Robot pinging
+  app.get("/ping", (req, res) => {
+    res.status(200).send("OK");
+  });
+
   // Enable CORS middleware so external dashboards can fetch/update data from other apps
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -175,8 +180,9 @@ async function startServer() {
   // SSE real-time updates setup
   app.get("/api/realtime", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
     const clientId = Date.now().toString();
@@ -185,7 +191,17 @@ async function startServer() {
     // Send connection affirmation
     res.write(`data: ${JSON.stringify({ type: "init", payload: { connected: true, clientId } })}\n\n`);
 
+    // Send a heartbeat comment every 15 seconds to prevent gateway/proxy timeouts (e.g., Cloud Run / load balancers)
+    const heartbeatInterval = setInterval(() => {
+      try {
+        res.write(": heartbeat\n\n");
+      } catch (e) {
+        clearInterval(heartbeatInterval);
+      }
+    }, 15000);
+
     req.on("close", () => {
+      clearInterval(heartbeatInterval);
       clients = clients.filter((c) => c.id !== clientId);
     });
   });
