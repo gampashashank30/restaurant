@@ -1,0 +1,6 @@
+{
+  "name": "Restaurant Ordering and Management System",
+  "description": "A full-stack food ordering platform with customer order placement and status tracking, plus an admin portal for order processing, real-time inventory management, item creation, and low-stock alters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
